@@ -1,13 +1,14 @@
 name: Build Android APK (fork)
 
-# Fork-local workflow: builds an unsigned universal Android APK and uploads it
-# as a workflow artifact. Runs automatically when a GitHub Release is published
-# (tag/release creation) and can be triggered manually via workflow_dispatch.
-# No repository secrets are required — the app ships with base64 defaults for
-# Supabase/Posthog/Stripe in the tracked apps/readest-app/.env, and the `foss`
-# store flavor (no Google Play billing / GMS) is the default. The produced APK
-# is DEBUG-signed by the Android toolchain (installable), not
-# Play-signing-keystore signed.
+# Fork-local workflow: builds an Android APK and uploads it as a workflow
+# artifact. Runs automatically when a GitHub Release is published (tag/release
+# creation) and can be triggered manually via workflow_dispatch with build_type
+# (debug/release) + target_arch (universal/aarch64/x86_64) inputs. No repository
+# secrets are required — the app ships with base64 defaults for Supabase/Posthog/
+# Stripe in the tracked apps/readest-app/.env, and the `foss` store flavor (no
+# Google Play billing / GMS) is the default. Debug APKs are auto-signed with the
+# Android debug keystore (installable); release APKs are unsigned (not
+# Play-signing-keystore signed).
 #
 # Pointing the APK at a self-hosted stack:
 #   The Tauri build is a static export, so `/runtime-config.js` (server-only)
@@ -35,6 +36,24 @@ name: Build Android APK (fork)
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (release = minified/slower, debug = fast/installable)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      target_arch:
+        description: 'Target architecture (universal = all ABIs, aarch64 = arm64 phone, x86_64 = emulator)'
+        required: true
+        default: 'aarch64'
+        type: choice
+        options:
+          - universal
+          - aarch64
+          - x86_64
   release:
     types: [published]
 
@@ -124,10 +143,12 @@ jobs:
           echo "--- apps/readest-app/.env.local (injected, key names only) ---"
           grep -oE '^[A-Z0-9_]+' apps/readest-app/.env.local || true
 
-      - name: build Android APK (universal, unsigned)
+      - name: build Android APK
         shell: bash
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          BUILD_TYPE: ${{ inputs.build_type || 'release' }}
+          TARGET_ARCH: ${{ inputs.target_arch || 'universal' }}
         run: |
           cd apps/readest-app/
           rm -rf src-tauri/gen/android
@@ -135,12 +156,26 @@ jobs:
           pnpm tauri icon ../../data/icons/readest-book.png
           git checkout .
 
-          pnpm tauri android build
+          ARGS=""
+          if [ "$TARGET_ARCH" != "universal" ]; then
+            ARGS="-t $TARGET_ARCH"
+          fi
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            pnpm tauri android build --debug $ARGS
+          else
+            pnpm tauri android build $ARGS
+          fi
 
       - name: upload APK artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: readest-fork-apk
-          path: apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          # Debug APKs are auto-signed with the debug keystore
+          # (app-{universal,aarch64,x86_64}-debug.apk). Release has no signing
+          # keystore configured, so Gradle emits
+          # app-universal-release-unsigned.apk. Globs cover both.
+          path: |
+            apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/debug/app-*-debug.apk
+            apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/release/app-*-release*.apk
           if-no-files-found: error
           retention-days: 30

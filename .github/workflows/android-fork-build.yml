@@ -1,0 +1,145 @@
+name: Build Android APK (fork)
+
+# Fork-local workflow: builds an unsigned universal Android APK from the
+# current branch and uploads it as a workflow artifact. No repository secrets
+# are required — the app ships with base64 defaults for Supabase/Posthog/Stripe
+# in the tracked apps/readest-app/.env, and the `foss` store flavor (no Google
+# Play billing / GMS) is the default. The produced APK is DEBUG-signed by the
+# Android toolchain (installable), not Play-signing-keystore signed.
+#
+# Pointing the APK at a self-hosted stack:
+#   The Tauri build is a static export, so `/runtime-config.js` (server-only)
+#   is never served and all backend URLs fall back to build-time NEXT_PUBLIC_*
+#   env vars. To make the APK talk to your self-hosted Readest stack instead of
+#   readest.com, set these repo VARIABLES (Settings -> Secrets and variables ->
+#   Actions -> Variables). They map to the build args in docker/compose.build.yaml
+#   and default to the upstream cloud if unset:
+#     SELFHOST_API_BASE_URL      -> NEXT_PUBLIC_API_BASE_URL      (default: https://web.readest.com)
+#     SELFHOST_NODE_BASE_URL     -> NEXT_PUBLIC_NODE_BASE_URL     (default: https://node.readest.com)
+#     SELFHOST_SUPABASE_URL      -> NEXT_PUBLIC_SUPABASE_URL      (default: upstream)
+#     SELFHOST_SUPABASE_ANON_KEY -> NEXT_PUBLIC_SUPABASE_ANON_KEY (default: upstream)
+#                                   NOTE: set this one as a repo SECRET (it's a
+#                                   credential), the rest as repo VARIABLES.
+#     SELFHOST_OBJECT_STORAGE_TYPE -> NEXT_PUBLIC_OBJECT_STORAGE_TYPE
+#     SELFHOST_STORAGE_FIXED_QUOTA -> NEXT_PUBLIC_STORAGE_FIXED_QUOTA
+#     SELFHOST_TRANSLATION_FIXED_QUOTA -> NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA
+#     SELFHOST_FONT_BASE_URL     -> NEXT_PUBLIC_FONT_BASE_URL     (self-hosted CJK webfonts)
+#   Typical self-host defaults (docker/.env): http://<HOST_IP>:3000 for API/NODE,
+#   http://<HOST_IP>:8000 for Supabase, and your ANON_KEY JWT.
+#
+#   Custom OpenAI-compatible TTS providers (this fork's feature) are configured
+#   at runtime in Settings -> TTS -> Custom Providers; keys live in local storage
+#   on-device, so no build-time config is needed for TTS.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: android-fork-build
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: initialize git submodules
+        run: git submodule update --init --recursive
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - name: install NDK
+        run: sdkmanager "ndk;28.2.13676358"
+
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: copy pdfjs-dist and simplecc-dist to public directory
+        run: pnpm --filter @readest/readest-app setup-vendors
+
+      - name: install Rust stable with Android targets
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        with:
+          key: fork-android-cargo
+
+      - name: inject self-hosted backend URLs (repo variables, optional)
+        shell: bash
+        env:
+          SELFHOST_API_BASE_URL: ${{ vars.SELFHOST_API_BASE_URL }}
+          SELFHOST_NODE_BASE_URL: ${{ vars.SELFHOST_NODE_BASE_URL }}
+          SELFHOST_SUPABASE_URL: ${{ vars.SELFHOST_SUPABASE_URL }}
+          SELFHOST_SUPABASE_ANON_KEY: ${{ secrets.SELFHOST_SUPABASE_ANON_KEY }}
+          SELFHOST_OBJECT_STORAGE_TYPE: ${{ vars.SELFHOST_OBJECT_STORAGE_TYPE }}
+          SELFHOST_STORAGE_FIXED_QUOTA: ${{ vars.SELFHOST_STORAGE_FIXED_QUOTA }}
+          SELFHOST_TRANSLATION_FIXED_QUOTA: ${{ vars.SELFHOST_TRANSLATION_FIXED_QUOTA }}
+          SELFHOST_FONT_BASE_URL: ${{ vars.SELFHOST_FONT_BASE_URL }}
+        run: |
+          touch apps/readest-app/.env.local
+          write_env() {
+            local val="$1"
+            if [ -n "$val" ]; then
+              printf '%s=%s\n' "$2" "$val" >> apps/readest-app/.env.local
+            fi
+          }
+          write_env "$SELFHOST_API_BASE_URL" NEXT_PUBLIC_API_BASE_URL
+          write_env "$SELFHOST_NODE_BASE_URL" NEXT_PUBLIC_NODE_BASE_URL
+          write_env "$SELFHOST_SUPABASE_URL" NEXT_PUBLIC_SUPABASE_URL
+          write_env "$SELFHOST_SUPABASE_ANON_KEY" NEXT_PUBLIC_SUPABASE_ANON_KEY
+          write_env "$SELFHOST_OBJECT_STORAGE_TYPE" NEXT_PUBLIC_OBJECT_STORAGE_TYPE
+          write_env "$SELFHOST_STORAGE_FIXED_QUOTA" NEXT_PUBLIC_STORAGE_FIXED_QUOTA
+          write_env "$SELFHOST_TRANSLATION_FIXED_QUOTA" NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA
+          write_env "$SELFHOST_FONT_BASE_URL" NEXT_PUBLIC_FONT_BASE_URL
+          echo "--- apps/readest-app/.env.local (injected, key names only) ---"
+          grep -oE '^[A-Z0-9_]+' apps/readest-app/.env.local || true
+
+      - name: build Android APK (universal, unsigned)
+        shell: bash
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+        run: |
+          cd apps/readest-app/
+          rm -rf src-tauri/gen/android
+          pnpm tauri android init
+          pnpm tauri icon ../../data/icons/readest-book.png
+          git checkout .
+
+          pnpm tauri android build
+
+      - name: upload APK artifact
+        uses: actions/upload-artifact@65c4c4a1ddee5b072f6fff2dd63f0f678ee6d575 # v4
+        with:
+          name: readest-fork-apk
+          path: apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          if-no-files-found: error
+          retention-days: 30

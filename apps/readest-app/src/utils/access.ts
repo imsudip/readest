@@ -98,6 +98,15 @@ export const TTS_CACHE_REQUIRES_PREMIUM = false;
 export const isTTSCacheAllowed = (plan: UserPlan): boolean =>
   !TTS_CACHE_REQUIRES_PREMIUM || isTTSCacheInPlan(plan);
 
+/**
+ * Fork master switch: hide every remaining premium/upgrade ENTRY POINT
+ * (SettingsMenu upgrade item, auth free-plan redirect to /user, translator
+ * upgrade toast). The underlying plan/upgrade code stays in place so the diff
+ * stays tiny and upstream merges stay clean — this flag only stops the UI from
+ * surfacing the paywall.
+ */
+export const HIDE_PREMIUM_ENTRY_POINTS = true;
+
 export const STORAGE_QUOTA_GRACE_BYTES = 10 * 1024 * 1024; // 10 MB grace
 
 export const getStoragePlanData = (token: string) => {

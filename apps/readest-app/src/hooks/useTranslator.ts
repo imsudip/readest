@@ -10,6 +10,7 @@ import {
 import { getFromCache, storeInCache, UseTranslatorOptions } from '@/services/translators';
 import { polish, preprocess } from '@/services/translators';
 import { eventDispatcher } from '@/utils/event';
+import { HIDE_PREMIUM_ENTRY_POINTS } from '@/utils/access';
 import { getLocale } from '@/utils/misc';
 import { useTranslation } from './useTranslation';
 
@@ -146,7 +147,9 @@ export function useTranslator({
           eventDispatcher.dispatch('toast', {
             timeout: 5000,
             message: _(
-              'Daily translation quota reached. Upgrade your plan to continue using AI translations.',
+              HIDE_PREMIUM_ENTRY_POINTS
+                ? 'Daily translation quota reached. Try again tomorrow.'
+                : 'Daily translation quota reached. Upgrade your plan to continue using AI translations.',
             ),
             type: 'error',
           });

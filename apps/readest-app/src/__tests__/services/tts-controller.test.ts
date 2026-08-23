@@ -21,6 +21,9 @@ vi.mock('@/services/tts/EdgeTTSClient', () => ({
       setParagraphGap: vi.fn(),
     });
   }),
+  // The real module re-exports this from BufferedTTSClient; the controller's
+  // module graph pulls it in transitively, so the mock must provide it.
+  DEFAULT_SENTENCE_GAP_SEC: 0.15,
 }));
 
 vi.mock('@/services/tts/NativeTTSClient', () => ({

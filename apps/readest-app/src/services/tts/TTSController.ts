@@ -18,6 +18,8 @@ import { expandRangeOverRuby } from '@/utils/ruby';
 import { WebSpeechClient } from './WebSpeechClient';
 import { NativeTTSClient } from './NativeTTSClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
+import { OpenAITTSClient } from './OpenAITTSClient';
+import { loadProviderConfigs } from './providers/openaiConfigStore';
 import { SectionTimeline, TimelineSentence } from './SectionTimeline';
 import { hydrateProvisionalDurations } from './ttsDuration';
 import { DownloadableSentence, SectionEnumerator, TTSDownloader } from './TTSDownloader';
@@ -25,6 +27,7 @@ import { TTSUtils } from './TTSUtils';
 import { TTSClient } from './TTSClient';
 import { startAudioKeepAlive, stopAudioKeepAlive } from './WebAudioPlayer';
 import { isValidLang } from '@/utils/lang';
+import { DEFAULT_PARAGRAPH_GAP_SEC } from './ttsConstants';
 import {
   computeWordOffsets,
   getTextSubRange,
@@ -94,7 +97,7 @@ export interface TTSViewBindings {
 // is engine-agnostic, handled entirely in #speak()/forward() below. There is
 // no natural pause here otherwise -- the transition is as fast as the async
 // stop/init overhead allows, which reads as no pause at all.
-export const DEFAULT_PARAGRAPH_GAP_SEC = 0.3;
+export { DEFAULT_PARAGRAPH_GAP_SEC } from './ttsConstants';
 
 export class TTSController extends EventTarget {
   // PlaybackSource tag: the media bridge and the session manager consume this
@@ -177,6 +180,8 @@ export class TTSController extends EventTarget {
   ttsEdgeClient: EdgeTTSClient;
   ttsNativeClient: TTSClient | null = null;
   ttsMediaOverlayClient: MediaOverlayClient;
+  // One buffered client per configured OpenAI-compatible provider.
+  ttsOpenAIClients: OpenAITTSClient[] = [];
   ttsWebVoices: TTSVoice[] = [];
   ttsEdgeVoices: TTSVoice[] = [];
   ttsNativeVoices: TTSVoice[] = [];
@@ -200,6 +205,11 @@ export class TTSController extends EventTarget {
       this.ttsNativeClient = new NativeTTSClient(this);
     }
     this.ttsMediaOverlayClient = new MediaOverlayClient(this);
+    // Custom OpenAI-compatible providers are user-configured and persisted
+    // locally; each gets its own buffered client so voices group per provider.
+    this.ttsOpenAIClients = loadProviderConfigs().map(
+      (config) => new OpenAITTSClient(config, this),
+    );
     this.ttsClient = this.ttsWebClient;
     this.appService = appService;
     this.view = view;
@@ -387,6 +397,16 @@ export class TTSController extends EventTarget {
     }
     if (await this.ttsWebClient.init()) {
       availableClients.push(this.ttsWebClient);
+    }
+    // Custom OpenAI-compatible providers: only the ones that respond join the
+    // picker; the rest stay out of availableClients (their voices render
+    // disabled through getAllVoices below).
+    const openAIClients = [];
+    for (const client of this.ttsOpenAIClients) {
+      if (await client.init()) {
+        availableClients.push(client);
+        openAIClients.push(client);
+      }
     }
     this.ttsClient = availableClients[0] || this.ttsWebClient;
     const preferredClientName = TTSUtils.getPreferredClient();
@@ -1495,6 +1515,11 @@ export class TTSController extends EventTarget {
     const ttsWebVoices = await this.ttsWebClient.getVoices(lang);
     const ttsEdgeVoices = await this.ttsEdgeClient.getVoices(lang);
     const ttsNativeVoices = (await this.ttsNativeClient?.getVoices(lang)) ?? [];
+    // Custom OpenAI-compatible providers, grouped per provider (each client is
+    // one configured endpoint).
+    const ttsOpenAIVoices = (
+      await Promise.all(this.ttsOpenAIClients.map((client) => client.getVoices(lang)))
+    ).flat();
     // The book's own narrator leads the list when there is one: it is the best
     // voice available for that book by a wide margin.
     const narrationVoices = this.narrationAvailable
@@ -1505,6 +1530,7 @@ export class TTSController extends EventTarget {
       ...narrationVoices,
       ...ttsNativeVoices,
       ...ttsEdgeVoices,
+      ...ttsOpenAIVoices,
       ...ttsWebVoices,
     ];
     return voicesGroups;
@@ -1539,6 +1565,16 @@ export class TTSController extends EventTarget {
     const useNativeTTS = !!this.ttsNativeVoices.find(
       (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
     );
+    // A voice belongs to a custom OpenAI provider when exactly one configured
+    // client exposes it (its group header carries the provider name).
+    let openAIClient: OpenAITTSClient | null = null;
+    for (const client of this.ttsOpenAIClients) {
+      const voices = await client.getAllVoices();
+      if (voices.some((v) => v.id === voiceId && !v.disabled)) {
+        openAIClient = client;
+        break;
+      }
+    }
     if (useEdgeTTS) {
       this.ttsClient = this.ttsEdgeClient;
       await this.ttsClient.setRate(this.ttsRate);
@@ -1547,6 +1583,9 @@ export class TTSController extends EventTarget {
         throw new Error('Native TTS client is not available');
       }
       this.ttsClient = this.ttsNativeClient;
+      await this.ttsClient.setRate(this.ttsRate);
+    } else if (openAIClient) {
+      this.ttsClient = openAIClient;
       await this.ttsClient.setRate(this.ttsRate);
     } else {
       this.ttsClient = this.ttsWebClient;
@@ -1877,6 +1916,11 @@ export class TTSController extends EventTarget {
     }
     if (this.ttsNativeClient?.initialized) {
       await this.ttsNativeClient.shutdown();
+    }
+    for (const client of this.ttsOpenAIClients) {
+      if (client.initialized) {
+        await client.shutdown();
+      }
     }
     if (this.ttsMediaOverlayClient.initialized) {
       await this.ttsMediaOverlayClient.shutdown();

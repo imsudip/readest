@@ -12,8 +12,15 @@ import {
   TTSPlayerStyle,
 } from '@/services/tts/types';
 import { getTTSCacheConfig, setTTSCacheConfig } from '@/services/tts/providers/bookCacheStore';
-import { BoxedList, SettingsRow, SettingsSelect, SettingsSwitchRow } from './primitives';
+import {
+  BoxedList,
+  NavigationRow,
+  SettingsRow,
+  SettingsSelect,
+  SettingsSwitchRow,
+} from './primitives';
 import TTSHighlightStyleEditor, { TTSHighlightStyle } from './theme/TTSHighlightStyleEditor';
+import CustomTTSProviders from './CustomTTSProviders';
 
 const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }) => {
   const _ = useTranslation();
@@ -42,6 +49,9 @@ const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }
   );
 
   const [ttsCacheConfig, setTtsCacheConfigState] = useState(getTTSCacheConfig());
+  // Custom TTS provider management is a sub-page (drill-in), mirroring the
+  // IntegrationsPanel sub-page pattern.
+  const [showCustomProviders, setShowCustomProviders] = useState(false);
 
   const updateTTSCacheConfig = (config: typeof ttsCacheConfig) => {
     setTtsCacheConfigState(config);
@@ -125,8 +135,22 @@ const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }
     setTtsHighlightGranularity(granularity);
   };
 
+  if (showCustomProviders) {
+    return <CustomTTSProviders onBack={() => setShowCustomProviders(false)} />;
+  }
+
   return (
     <div className='my-4 w-full space-y-6'>
+      <BoxedList title={_('Custom Providers')} data-setting-id='settings.tts.customProviders'>
+        <NavigationRow
+          icon={undefined}
+          title={_('OpenAI-Compatible TTS Providers')}
+          status={_('Add your own endpoint + API key')}
+          onClick={() => setShowCustomProviders(true)}
+          data-setting-id='settings.tts.customProviders.open'
+        />
+      </BoxedList>
+
       <TTSHighlightStyleEditor
         granularity={ttsHighlightGranularity}
         style={ttsHighlightStyle}

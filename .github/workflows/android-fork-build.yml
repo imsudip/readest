@@ -1,11 +1,13 @@
 name: Build Android APK (fork)
 
-# Fork-local workflow: builds an unsigned universal Android APK from the
-# current branch and uploads it as a workflow artifact. No repository secrets
-# are required — the app ships with base64 defaults for Supabase/Posthog/Stripe
-# in the tracked apps/readest-app/.env, and the `foss` store flavor (no Google
-# Play billing / GMS) is the default. The produced APK is DEBUG-signed by the
-# Android toolchain (installable), not Play-signing-keystore signed.
+# Fork-local workflow: builds an unsigned universal Android APK and uploads it
+# as a workflow artifact. Runs automatically when a GitHub Release is published
+# (tag/release creation) and can be triggered manually via workflow_dispatch.
+# No repository secrets are required — the app ships with base64 defaults for
+# Supabase/Posthog/Stripe in the tracked apps/readest-app/.env, and the `foss`
+# store flavor (no Google Play billing / GMS) is the default. The produced APK
+# is DEBUG-signed by the Android toolchain (installable), not
+# Play-signing-keystore signed.
 #
 # Pointing the APK at a self-hosted stack:
 #   The Tauri build is a static export, so `/runtime-config.js` (server-only)
@@ -33,9 +35,8 @@ name: Build Android APK (fork)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
 
 concurrency:
   group: android-fork-build

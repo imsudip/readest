@@ -67,6 +67,53 @@
 | **Accessibility**                          | Provides full keyboard navigation and support for screen readers such as VoiceOver, TalkBack, NVDA, and Orca.         | ✅         |
 | **Visual & Focus Aids**                    | Reading ruler, paragraph-by-paragraph reading mode, and speed reading features.                                        | ✅         |
 
+## Fork Changes (Pluggable Reader)
+
+This fork adds self-hosted, provider-agnostic TTS and removes the premium paywall for self-hosted deployments.
+
+### Custom OpenAI-Compatible TTS Providers
+
+Add your own TTS endpoints (Kokoro-FastAPI, OpenAI, OpenRouter, or any `/v1/audio/speech`-compatible service) with your own API key:
+
+- **Settings → TTS → Custom Providers**: add/edit/delete providers (display name, base URL, API key, model), with a **Test Connection** button that probes `GET /v1/models` and populates the model dropdown.
+- **API contract**: `GET /v1/models`, `GET /v1/audio/voices` (falls back to OpenAI's standard voices on 404), `POST /v1/audio/speech` with `Authorization: Bearer <key>`.
+- **Voice picker**: configured providers appear as their own voice groups; voices follow the Kokoro ID convention (`af_` = American English female, `am_` = male, `bf_` = British female, etc.) for language grouping.
+- **Keys stay on-device**: provider configs are persisted in local storage only, never uploaded.
+- No word-level timestamps from OpenAI-compatible engines — highlighting degrades to sentence-level (the seam's designed fallback).
+- In-flight dedup prevents the preload/scheduler from double-fetching the same sentence.
+
+Example (local Kokoro-FastAPI on the same LAN):
+
+```text
+Base URL: http://192.168.1.55:8880
+Model:    kokoro
+API key:  (blank)
+```
+
+### Self-Hosted: Premium Features Un-Gated
+
+The self-host docker stack ships no billing backend (no `plans` table, no Stripe/IAP), so every user resolves to `free`. This fork flips the master switches so all features are available to every plan on a self-hosted instance:
+
+- `CLOUD_SYNC_REQUIRES_PREMIUM = false` — WebDAV/Google Drive/S3 sync for all
+- `TTS_CACHE_REQUIRES_PREMIUM = false` — offline TTS audio cache for all
+- `EMAIL_IN_PLANS` includes `free` — Send-to-Readest email for all
+- Quotas are unlimited via `STORAGE_FIXED_QUOTA` / `TRANSLATION_FIXED_QUOTA` env (see `docker/.env.example`)
+
+### Prebuilt Image
+
+A prebuilt client image with these changes is published to GHCR:
+
+```sh
+docker pull ghcr.io/imsudip/readest:latest
+```
+
+Point `READEST_IMAGE` in `docker/.env` at it (see `docker/README.md` for the self-host stack), or build locally with:
+
+```sh
+cd docker
+docker compose -f compose.yaml -f compose.build.yaml up --build -d
+```
+
 ## Planned Features
 
 <div align="left">🛠 Building</div>

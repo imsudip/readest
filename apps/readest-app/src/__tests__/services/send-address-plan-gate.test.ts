@@ -97,42 +97,33 @@ beforeEach(() => {
 });
 
 describe('isEmailInPlan helper', () => {
-  test('allows plus, pro, and lifetime (purchase)', () => {
+  test('allows every plan — self-hosted fork ungates email-in for all', () => {
+    expect(isEmailInPlan('free')).toBe(true);
     expect(isEmailInPlan('plus')).toBe(true);
     expect(isEmailInPlan('pro')).toBe(true);
     expect(isEmailInPlan('purchase')).toBe(true);
   });
-
-  test('blocks the free tier', () => {
-    expect(isEmailInPlan('free')).toBe(false);
-  });
 });
 
 describe('/api/send/address — plan gate', () => {
-  test('returns 403 with code=plan_required for free users on GET (lazy-create blocked)', async () => {
+  test('lets free users through the gate on GET (lazy-create allowed)', async () => {
     getUserProfilePlanMock.mockReturnValue('free' satisfies UserPlan);
     const res = makeRes();
     await addressHandler(makeReq('GET'), res as unknown as NextApiResponse);
 
-    expect(res._status).toBe(403);
-    expect(res._body).toMatchObject({
-      code: 'plan_required',
-      plan: 'free',
-      requiredPlans: ['plus', 'pro', 'purchase'],
-    });
-    // Critically: no Supabase access on the gate-blocked path. A free
-    // user must never get a row allocated in `send_addresses`.
-    expect(supabaseTouched).not.toHaveBeenCalled();
+    // The gate is past — Supabase was touched. We don't care here what
+    // the eventual response is (the Supabase mock returns no row).
+    expect(res._status).not.toBe(403);
+    expect(supabaseTouched).toHaveBeenCalled();
   });
 
-  test('returns 403 for free users on POST (rotation blocked)', async () => {
+  test('lets free users through the gate on POST (rotation allowed)', async () => {
     getUserProfilePlanMock.mockReturnValue('free' satisfies UserPlan);
     const res = makeRes();
     await addressHandler(makeReq('POST', { slug: 'myname' }), res as unknown as NextApiResponse);
 
-    expect(res._status).toBe(403);
-    expect(res._body).toMatchObject({ code: 'plan_required' });
-    expect(supabaseTouched).not.toHaveBeenCalled();
+    expect(res._status).not.toBe(403);
+    expect(supabaseTouched).toHaveBeenCalled();
   });
 
   test.each<UserPlan>([
@@ -151,17 +142,16 @@ describe('/api/send/address — plan gate', () => {
 });
 
 describe('/api/send/senders — plan gate', () => {
-  test('returns 403 for free users on GET (list blocked)', async () => {
+  test('lets free users through the gate on GET (list allowed)', async () => {
     getUserProfilePlanMock.mockReturnValue('free' satisfies UserPlan);
     const res = makeRes();
     await sendersHandler(makeReq('GET'), res as unknown as NextApiResponse);
 
-    expect(res._status).toBe(403);
-    expect(res._body).toMatchObject({ code: 'plan_required' });
-    expect(supabaseTouched).not.toHaveBeenCalled();
+    expect(res._status).not.toBe(403);
+    expect(supabaseTouched).toHaveBeenCalled();
   });
 
-  test('returns 403 for free users on POST (add sender blocked)', async () => {
+  test('lets free users through the gate on POST (add sender allowed)', async () => {
     getUserProfilePlanMock.mockReturnValue('free' satisfies UserPlan);
     const res = makeRes();
     await sendersHandler(
@@ -169,12 +159,16 @@ describe('/api/send/senders — plan gate', () => {
       res as unknown as NextApiResponse,
     );
 
-    expect(res._status).toBe(403);
-    expect(res._body).toMatchObject({ code: 'plan_required' });
-    expect(supabaseTouched).not.toHaveBeenCalled();
+    expect(res._status).not.toBe(403);
+    expect(supabaseTouched).toHaveBeenCalled();
   });
 
-  test.each<UserPlan>(['plus', 'pro', 'purchase'])('lets %s users past the gate', async (plan) => {
+  test.each<UserPlan>([
+    'free',
+    'plus',
+    'pro',
+    'purchase',
+  ])('lets %s users past the gate', async (plan) => {
     getUserProfilePlanMock.mockReturnValue(plan);
     const res = makeRes();
     await sendersHandler(makeReq('GET'), res as unknown as NextApiResponse);

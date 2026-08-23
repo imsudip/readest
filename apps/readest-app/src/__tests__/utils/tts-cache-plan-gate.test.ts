@@ -15,9 +15,9 @@ describe('isTTSCacheInPlan', () => {
 });
 
 describe('isTTSCacheAllowed (premium paywall)', () => {
-  test('downloading TTS audio for offline playback requires a paid plan', () => {
-    expect(TTS_CACHE_REQUIRES_PREMIUM).toBe(true);
-    expect(isTTSCacheAllowed('free')).toBe(false);
+  test('self-hosted fork: paywall switch is off, so every plan can download TTS audio', () => {
+    expect(TTS_CACHE_REQUIRES_PREMIUM).toBe(false);
+    expect(isTTSCacheAllowed('free')).toBe(true);
     expect(isTTSCacheAllowed('plus')).toBe(true);
     expect(isTTSCacheAllowed('pro')).toBe(true);
     expect(isTTSCacheAllowed('purchase')).toBe(true);

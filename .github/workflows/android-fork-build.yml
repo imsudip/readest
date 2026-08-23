@@ -137,7 +137,7 @@ jobs:
           pnpm tauri android build
 
       - name: upload APK artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b072f6fff2dd63f0f678ee6d575 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: readest-fork-apk
           path: apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk

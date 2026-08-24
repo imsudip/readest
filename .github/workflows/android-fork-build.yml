@@ -160,11 +160,11 @@ jobs:
           # wipes it). The signing config is only read by Gradle if the file exists.
           if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/readest-keystore.p12"
-            cat > src-tauri/gen/android/keystore.properties <<EOF
-            keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-            password=${{ secrets.ANDROID_KEY_PASSWORD }}
-            storeFile=$RUNNER_TEMP/readest-keystore.p12
-            EOF
+            printf 'keyAlias=%s\npassword=%s\nstoreFile=%s\n' \
+              "${{ secrets.ANDROID_KEY_ALIAS }}" \
+              "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+              "$RUNNER_TEMP/readest-keystore.p12" \
+              > src-tauri/gen/android/keystore.properties
           fi
 
           ARGS=""

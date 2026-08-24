@@ -156,6 +156,17 @@ jobs:
           pnpm tauri icon ../../data/icons/readest-book.png
           git checkout .
 
+          # Write keystore.properties AFTER regenerating gen/android (init/checkout
+          # wipes it). The signing config is only read by Gradle if the file exists.
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/readest-keystore.p12"
+            cat > src-tauri/gen/android/keystore.properties <<EOF
+            keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+            password=${{ secrets.ANDROID_KEY_PASSWORD }}
+            storeFile=$RUNNER_TEMP/readest-keystore.p12
+            EOF
+          fi
+
           ARGS=""
           if [ "$TARGET_ARCH" != "universal" ]; then
             ARGS="-t $TARGET_ARCH"
@@ -171,9 +182,10 @@ jobs:
         with:
           name: readest-fork-apk
           # Debug APKs are auto-signed with the debug keystore
-          # (app-{universal,aarch64,x86_64}-debug.apk). Release has no signing
-          # keystore configured, so Gradle emits
-          # app-universal-release-unsigned.apk. Globs cover both.
+          # (app-{universal,aarch64,x86_64}-debug.apk). Release is signed with the
+          # stable ANDROID_KEYSTORE_BASE64 secret when present (emits
+          # app-{arch}-release.apk), else unsigned (app-{arch}-release-unsigned.apk).
+          # Globs cover all.
           path: |
             apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/debug/app-*-debug.apk
             apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/release/app-*-release*.apk

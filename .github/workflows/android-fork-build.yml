@@ -1,14 +1,15 @@
 name: Build Android APK (fork)
 
-# Fork-local workflow: builds an Android APK and uploads it as a workflow
-# artifact. Runs automatically when a GitHub Release is published (tag/release
-# creation) and can be triggered manually via workflow_dispatch with build_type
-# (debug/release) + target_arch (universal/aarch64/x86_64) inputs. No repository
-# secrets are required — the app ships with base64 defaults for Supabase/Posthog/
-# Stripe in the tracked apps/readest-app/.env, and the `foss` store flavor (no
-# Google Play billing / GMS) is the default. Debug APKs are auto-signed with the
-# Android debug keystore (installable); release APKs are unsigned (not
-# Play-signing-keystore signed).
+# Fork-local workflow: builds split (per-ABI) Android APKs and uploads them as
+# a workflow artifact. Runs automatically when a GitHub Release is published
+# (tag/release creation) and can be triggered manually via workflow_dispatch
+# with build_type (debug/release) + target_arch (universal/aarch64/armv7/i686/
+# x86_64) inputs. No repository secrets are required — the app ships with
+# base64 defaults for Supabase/Posthog/Stripe in the tracked
+# apps/readest-app/.env, and the `foss` store flavor (no Google Play billing /
+# GMS) is the default. Debug APKs are auto-signed with the Android debug
+# keystore (installable); release APKs are signed with the
+# ANDROID_KEYSTORE_BASE64 secret when present (else unsigned).
 #
 # Pointing the APK at a self-hosted stack:
 #   The Tauri build is a static export, so `/runtime-config.js` (server-only)
@@ -46,14 +47,21 @@ on:
           - debug
           - release
       target_arch:
-        description: 'Target architecture (universal = all ABIs, aarch64 = arm64 phone, x86_64 = emulator)'
+        description: 'Target architecture (aarch64 = arm64 phone, armv7 = 32-bit arm, x86_64 = emulator, i686 = legacy 32-bit emulator, universal = all ABIs in one APK)'
         required: true
         default: 'aarch64'
         type: choice
         options:
           - universal
           - aarch64
+          - armv7
+          - i686
           - x86_64
+      release_tag:
+        description: 'Tag of an existing release to attach built APKs to (optional; release events use their own tag)'
+        required: false
+        default: ''
+        type: string
   release:
     types: [published]
 
@@ -66,7 +74,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
-      contents: read
+      # write needed so gh release upload can attach APKs to the triggering
+      # release (the previous contents: read caused a 403 here)
+      contents: write
 
     steps:
       - name: checkout
@@ -167,24 +177,38 @@ jobs:
               > src-tauri/gen/android/keystore.properties
           fi
 
+          DEBUG_FLAG=""
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            DEBUG_FLAG="--debug"
+          fi
+
+          # Release-triggered runs emit one split APK per ABI
+          # (app-{arm64,arm,x86,x86_64}-release.apk) in a single gradle
+          # invocation via --split-per-abi. Manual dispatch builds just the
+          # selected arch (or universal) unless a release_tag is supplied.
+          RELEASE_TAG="${{ inputs.release_tag || github.event.release.tag_name || '' }}"
+          SPLIT_FLAG=""
+          if [ -n "$RELEASE_TAG" ]; then
+            SPLIT_FLAG="--split-per-abi"
+          fi
+
           ARGS=""
           if [ "$TARGET_ARCH" != "universal" ]; then
             ARGS="-t $TARGET_ARCH"
           fi
-          if [ "$BUILD_TYPE" = "debug" ]; then
-            pnpm tauri android build --debug $ARGS
-          else
-            pnpm tauri android build $ARGS
-          fi
+
+          # --apk skips the AAB build, halving gradle time on release runs.
+          pnpm tauri android build $DEBUG_FLAG $SPLIT_FLAG --apk $ARGS
 
       - name: upload APK artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: readest-fork-apk
           # Debug APKs are auto-signed with the debug keystore
-          # (app-{universal,aarch64,x86_64}-debug.apk). Release is signed with the
+          # (app-{universal,aarch64,...}-debug.apk). Release is signed with the
           # stable ANDROID_KEYSTORE_BASE64 secret when present (emits
           # app-{arch}-release.apk), else unsigned (app-{arch}-release-unsigned.apk).
+          # Release runs also emit per-ABI split APKs (app-{arm64,arm,x86,x86_64}-release.apk).
           # Globs cover all.
           path: |
             apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/debug/app-*-debug.apk
@@ -193,23 +217,47 @@ jobs:
           retention-days: 30
 
       - name: attach APK to release
-        # On a release-triggered run, publish the built APK as a release asset.
-        # Uses the release tag captured from the event; skipped on manual runs.
-        if: github.event_name == 'release'
+        # On a release-triggered run (or a manual run with release_tag), publish
+        # the built split APKs as release assets named
+        # Readest_<version>_<arch>.apk (mirroring upstream's
+        # Readest_<version>_arm64.apk convention).
+        if: github.event_name == 'release' || inputs.release_tag != ''
         shell: bash
         run: |
           set -euo pipefail
-          APKS=$(find apps/readest-app/src-tauri/gen/android/app/build/outputs/apk \
-            -type f \( -name 'app-*-debug.apk' -o -name 'app-*-release*.apk' \) || true)
-          if [ -z "$APKS" ]; then
-            echo "No APKs found to attach to the release."
+          RELEASE_TAG="${{ inputs.release_tag || github.event.release.tag_name || '' }}"
+          version="${RELEASE_TAG#v}"
+          # Copy each split APK to a version+arch-named asset, then upload.
+          # Split dirs from --split-per-abi: arm64/arm/x86/x86_64.
+          staged_dir="apps/readest-app/src-tauri/gen/android/app/build/outputs/staged"
+          rm -rf "$staged_dir"
+          mkdir -p "$staged_dir"
+          shopt -s nullglob
+          found=0
+          for apk in apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/release/app-*-release*.apk; do
+            name="$(basename "$apk")"
+            # app-arm64-release.apk -> arm64 (strip app- prefix, -release[(-unsigned)].apk suffix)
+            arch="${name#app-}"
+            arch="${arch%-release.apk}"
+            arch="${arch%-release-unsigned.apk}"
+            # universal (no split) still uploads as Readest_<version>_universal.apk
+            if [ "$arch" = "universal" ]; then
+              dest="${version}_universal"
+            else
+              dest="${version}_${arch}"
+            fi
+            cp "$apk" "$staged_dir/Readest_${dest}.apk"
+            found=1
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No release APKs found to attach to the release."
             exit 0
           fi
           # gh is preinstalled on runners; the release event's GITHUB_TOKEN can
-          # write to the release that triggered this workflow.
-          while IFS= read -r apk; do
-            echo "Attaching $apk to release ${{ github.event.release.tag_name }}"
-            gh release upload "${{ github.event.release.tag_name }}" "$apk" --clobber
-          done <<< "$APKS"
+          # write to the release that triggered this workflow (contents: write).
+          for apk in "$staged_dir"/Readest_*.apk; do
+            echo "Attaching $apk to release $RELEASE_TAG"
+            gh release upload "$RELEASE_TAG" "$apk" --clobber
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

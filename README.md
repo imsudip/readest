@@ -78,7 +78,7 @@ Add your own TTS endpoints (Kokoro-FastAPI, OpenAI, OpenRouter, or any `/v1/audi
 - **Settings → TTS → Custom Providers**: add/edit/delete providers (display name, base URL, API key, model), with a **Test Connection** button that probes `GET /v1/models` and populates the model dropdown.
 - **API contract**: `GET /v1/models`, `GET /v1/audio/voices` (falls back to OpenAI's standard voices on 404), `POST /v1/audio/speech` with `Authorization: Bearer <key>`.
 - **Voice picker**: configured providers appear as their own voice groups; voices follow the Kokoro ID convention (`af_` = American English female, `am_` = male, `bf_` = British female, etc.) for language grouping.
-- **Keys stay on-device**: provider configs are persisted in local storage only, never uploaded.
+- **Sync across devices**: provider configs (name, base URL, model) sync via a dedicated `tts_provider` replica channel. API keys ride the encrypted-credential envelope and only leave the device when you opt into **Credentials** sync in Settings → Manage Sync — until then keys stay local-only.
 - No word-level timestamps from OpenAI-compatible engines — highlighting degrades to sentence-level (the seam's designed fallback).
 - In-flight dedup prevents the preload/scheduler from double-fetching the same sentence.
 
@@ -101,11 +101,13 @@ The self-host docker stack ships no billing backend (no `plans` table, no Stripe
 
 ### Prebuilt Image
 
-A prebuilt client image with these changes is published to GHCR:
+A prebuilt client image with these changes is published to GHCR (multi-arch amd64/arm64):
 
 ```sh
 docker pull ghcr.io/imsudip/readest:latest
 ```
+
+The image is rebuilt and tagged on every push to `main` and on every GitHub **Release** (`main`, `latest`, and semver `vX.Y.Z` tags). The Android APK workflow is triggered by the same release event, so publishing a release produces both artifacts.
 
 Point `READEST_IMAGE` in `docker/.env` at it (see `docker/README.md` for the self-host stack), or build locally with:
 

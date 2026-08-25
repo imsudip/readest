@@ -277,9 +277,12 @@ describe('getReadyFileSyncBackends', () => {
     expect(getReadyFileSyncBackends(settings)).toEqual(['webdav', 'gdrive']);
   });
 
-  test('excludes everything when the plan gate pauses third-party sync', () => {
+  test('does not pause third-party sync on the free plan (self-host premium un-gate)', () => {
     setCachedUserPlan('free');
-    expect(getReadyFileSyncBackends(settings)).toEqual([]);
+    // The fork un-gates the third-party cloud-sync paywall
+    // (CLOUD_SYNC_REQUIRES_PREMIUM = false), so a free plan no longer
+    // pauses enabled backends.
+    expect(getReadyFileSyncBackends(settings)).toEqual(['webdav', 'gdrive']);
   });
 
   test('rules icloud out off Apple platforms (canBackendRun false)', () => {

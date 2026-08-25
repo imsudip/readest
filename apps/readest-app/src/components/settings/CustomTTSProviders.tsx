@@ -4,14 +4,10 @@ import { IoMdCloseCircleOutline } from 'react-icons/io';
 import SubPageHeader from './SubPageHeader';
 import { BoxedList, Tips } from './primitives';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useEnv } from '@/context/EnvContext';
 import { eventDispatcher } from '@/utils/event';
-import {
-  addProviderConfig,
-  loadProviderConfigs,
-  removeProviderConfig,
-  updateProviderConfig,
-  type OpenAITTSProviderConfig,
-} from '@/services/tts/providers/openaiConfigStore';
+import { type OpenAITTSProviderConfig } from '@/services/tts/providers/openaiConfigStore';
+import { useTTSProviderStore } from '@/store/useTTSProviderStore';
 
 interface CustomTTSProvidersProps {
   onBack: () => void;
@@ -88,13 +84,18 @@ const emptyModal = (): ProviderModalState => ({
 
 const CustomTTSProviders: React.FC<CustomTTSProvidersProps> = ({ onBack }) => {
   const _ = useTranslation();
+  const { envConfig } = useEnv();
+  const { getAvailableProviders, addProvider, updateProvider, removeProvider, loadTTSProviders } =
+    useTTSProviderStore();
   const [providers, setProviders] = useState<OpenAITTSProviderConfig[]>([]);
   const [modal, setModal] = useState<ProviderModalState | null>(null);
 
-  const refresh = () => setProviders(loadProviderConfigs());
+  const refresh = () => setProviders(getAvailableProviders());
 
   useEffect(() => {
+    void loadTTSProviders(envConfig);
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openAdd = () => setModal(emptyModal());
@@ -103,7 +104,7 @@ const CustomTTSProviders: React.FC<CustomTTSProvidersProps> = ({ onBack }) => {
       editingId: provider.id,
       name: provider.name,
       baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
+      apiKey: provider.apiKey ?? '',
       model: provider.model ?? '',
       testing: false,
       testResult: null,
@@ -142,9 +143,9 @@ const CustomTTSProviders: React.FC<CustomTTSProvidersProps> = ({ onBack }) => {
       model: modal.model.trim() || undefined,
     };
     if (modal.editingId) {
-      updateProviderConfig(modal.editingId, payload);
+      updateProvider(modal.editingId, payload);
     } else {
-      addProviderConfig(payload);
+      addProvider(payload);
     }
     refresh();
     closeModal();
@@ -156,7 +157,7 @@ const CustomTTSProviders: React.FC<CustomTTSProvidersProps> = ({ onBack }) => {
   };
 
   const handleRemove = (id: string) => {
-    removeProviderConfig(id);
+    removeProvider(id);
     refresh();
   };
 

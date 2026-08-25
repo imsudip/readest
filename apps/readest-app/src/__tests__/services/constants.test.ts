@@ -255,6 +255,7 @@ describe('services/constants', () => {
         texture: true,
         opds_catalog: true,
         abs_server: true,
+        tts_provider: true,
         settings: true,
       });
     });

@@ -218,6 +218,7 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   pinCodeEnabled: false,
 
   customDictionaries: [],
+  ttsProviders: [],
   dictionarySettings: {
     providerOrder: ['builtin:wiktionary', 'builtin:wikipedia'],
     providerEnabled: {
@@ -250,6 +251,7 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
     texture: true,
     opds_catalog: true,
     abs_server: true,
+    tts_provider: true,
     settings: true,
   },
 };

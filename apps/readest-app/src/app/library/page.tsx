@@ -126,6 +126,7 @@ import ClipSignInAlert from '@/components/ClipSignInAlert';
 import useShortcuts from '@/hooks/useShortcuts';
 import { useReplicaPull } from '@/hooks/useReplicaPull';
 import { useCustomFonts } from '@/hooks/useCustomFonts';
+import { useTTSProviders } from '@/hooks/useTTSProviders';
 import DropIndicator from '@/components/DropIndicator';
 import SettingsDialog from '@/components/settings/SettingsDialog';
 import ModalPortal from '@/components/ModalPortal';
@@ -242,13 +243,22 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   // settings). Deferred 10s; module-scoped dedup means a later navigation
   // to the reader won't re-pull the same kind.
   useReplicaPull({
-    kinds: ['dictionary', 'font', 'texture', 'opds_catalog', 'abs_server', 'settings'],
+    kinds: [
+      'dictionary',
+      'font',
+      'texture',
+      'opds_catalog',
+      'abs_server',
+      'tts_provider',
+      'settings',
+    ],
   });
   // Hydrate the custom-font store from persisted settings so the Font
   // panel sees imported fonts even when opened straight from the
   // library — the replica pull above is auth-gated and the reader's
   // FoliateViewer hydration never runs without a book open.
   useCustomFonts();
+  useTTSProviders();
   const [showCatalogManager, setShowCatalogManager] = useState(
     searchParams?.get('opds') === 'true',
   );

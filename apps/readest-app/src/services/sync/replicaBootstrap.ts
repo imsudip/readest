@@ -6,6 +6,7 @@ import { fontAdapter, FONT_KIND } from './adapters/font';
 import { textureAdapter, TEXTURE_KIND } from './adapters/texture';
 import { opdsCatalogAdapter } from './adapters/opdsCatalog';
 import { absServerAdapter } from './adapters/absServer';
+import { ttsProviderAdapter } from './adapters/ttsProvider';
 import { settingsAdapter } from './adapters/settings';
 import { getReplicaPersistEnv } from './replicaPersist';
 import { getReplicaAdapter, registerReplicaAdapter } from './replicaRegistry';
@@ -20,6 +21,8 @@ const KNOWN_ADAPTERS: ReplicaAdapter<unknown>[] = [
   opdsCatalogAdapter as unknown as ReplicaAdapter<unknown>,
   // Metadata-only — no binary download handler needed.
   absServerAdapter as unknown as ReplicaAdapter<unknown>,
+  // Metadata-only — no binary download handler needed.
+  ttsProviderAdapter as unknown as ReplicaAdapter<unknown>,
   // Bundled scalar settings — singleton row, no binary.
   settingsAdapter as unknown as ReplicaAdapter<unknown>,
 ];

@@ -223,7 +223,7 @@ describe('isSyncCategoryEnabled', () => {
 });
 
 describe('SYNC_CATEGORIES', () => {
-  test('covers all eleven user-facing categories (incl. settings + stats + credentials)', () => {
+  test('covers all twelve user-facing categories (incl. settings + stats + credentials)', () => {
     expect([...SYNC_CATEGORIES].sort()).toEqual(
       [
         'abs_server',
@@ -237,6 +237,7 @@ describe('SYNC_CATEGORIES', () => {
         'settings',
         'stats',
         'texture',
+        'tts_provider',
       ].sort(),
     );
   });

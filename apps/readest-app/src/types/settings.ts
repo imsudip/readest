@@ -7,6 +7,7 @@ import { ABSServer } from './audiobookshelf';
 import type { AISettings } from '@/services/ai/types';
 import type { NotebookTab } from '@/store/notebookStore';
 import type { DictionarySettings, ImportedDictionary } from '@/services/dictionaries/types';
+import type { OpenAITTSProviderConfig } from '@/services/tts/providers/openaiConfigStore';
 
 export type ThemeType = 'light' | 'dark' | 'auto';
 export type LibraryViewModeType = 'grid' | 'list';
@@ -321,6 +322,7 @@ export type SyncCategory =
   | 'texture'
   | 'opds_catalog'
   | 'abs_server'
+  | 'tts_provider'
   | 'settings'
   | 'credentials'
   | 'stats';
@@ -334,6 +336,7 @@ export const SYNC_CATEGORIES: readonly SyncCategory[] = [
   'texture',
   'opds_catalog',
   'abs_server',
+  'tts_provider',
   'settings',
   'stats',
   'credentials',
@@ -464,6 +467,7 @@ export interface SystemSettings {
   customFonts: CustomFont[];
   customTextures: CustomTexture[];
   customDictionaries: ImportedDictionary[];
+  ttsProviders: OpenAITTSProviderConfig[];
   dictionarySettings: DictionarySettings;
   opdsCatalogs: OPDSCatalog[];
   absServers: ABSServer[];

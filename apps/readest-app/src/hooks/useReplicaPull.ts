@@ -14,6 +14,7 @@ import {
 } from '@/store/customTextureStore';
 import { useCustomOPDSStore, findOPDSCatalogByContentId } from '@/store/customOPDSStore';
 import { useABSServerStore } from '@/store/absServerStore';
+import { useTTSProviderStore, findTTSProviderByContentId } from '@/store/useTTSProviderStore';
 import { transferManager } from '@/services/transferManager';
 import { getReplicaSync, subscribeReplicaSyncReady } from '@/services/sync/replicaSync';
 import { dictionaryAdapter } from '@/services/sync/adapters/dictionary';
@@ -21,6 +22,7 @@ import { fontAdapter } from '@/services/sync/adapters/font';
 import { textureAdapter } from '@/services/sync/adapters/texture';
 import { opdsCatalogAdapter } from '@/services/sync/adapters/opdsCatalog';
 import { absServerAdapter } from '@/services/sync/adapters/absServer';
+import { ttsProviderAdapter } from '@/services/sync/adapters/ttsProvider';
 import { settingsAdapter, type SettingsRemoteRecord } from '@/services/sync/adapters/settings';
 import {
   applyRemoteSettings,
@@ -47,6 +49,7 @@ import type { CustomFont } from '@/styles/fonts';
 import type { CustomTexture } from '@/styles/textures';
 import type { OPDSCatalog } from '@/types/opds';
 import type { ABSServer } from '@/types/audiobookshelf';
+import type { OpenAITTSProviderConfig } from '@/services/tts/providers/openaiConfigStore';
 import type { Hlc, ReplicaRow } from '@/types/replica';
 import type { SystemSettings } from '@/types/settings';
 
@@ -56,6 +59,7 @@ export type ReplicaKind =
   | 'texture'
   | 'opds_catalog'
   | 'abs_server'
+  | 'tts_provider'
   | 'settings';
 
 export interface UseReplicaPullOpts {
@@ -280,6 +284,16 @@ const absServerPullConfig: ReplicaPullConfig<ABSServer> = {
   softDeleteByContentId: (id) => useABSServerStore.getState().softDeleteByContentId(id),
 };
 
+const ttsProviderPullConfig: ReplicaPullConfig<OpenAITTSProviderConfig> = {
+  kind: 'tts_provider',
+  // metadata-only — no baseDir
+  adapter: ttsProviderAdapter,
+  findByContentId: findTTSProviderByContentId,
+  hydrateLocalStore: (envConfig) => useTTSProviderStore.getState().loadTTSProviders(envConfig),
+  applyRemote: (provider) => useTTSProviderStore.getState().applyRemoteProvider(provider),
+  softDeleteByContentId: (id) => useTTSProviderStore.getState().softDeleteByContentId(id),
+};
+
 const settingsPullConfig = (envConfig: EnvConfigType): ReplicaPullConfig<SettingsRemoteRecord> => ({
   kind: 'settings',
   // metadata-only — no baseDir
@@ -387,6 +401,18 @@ const runPullForKind = async (
           service,
           envConfig,
           absServerPullConfig,
+          pullOpts,
+          pullOverride,
+        ),
+      );
+      return;
+    case 'tts_provider':
+      await replicaPullAndApply(
+        buildReplicaPullDeps(
+          ctx.manager,
+          service,
+          envConfig,
+          ttsProviderPullConfig,
           pullOpts,
           pullOverride,
         ),

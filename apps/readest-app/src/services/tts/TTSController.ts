@@ -20,6 +20,7 @@ import { NativeTTSClient } from './NativeTTSClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
 import { OpenAITTSClient } from './OpenAITTSClient';
 import { loadProviderConfigs } from './providers/openaiConfigStore';
+import { useTTSProviderStore } from '@/store/useTTSProviderStore';
 import { SectionTimeline, TimelineSentence } from './SectionTimeline';
 import { hydrateProvisionalDurations } from './ttsDuration';
 import { DownloadableSentence, SectionEnumerator, TTSDownloader } from './TTSDownloader';
@@ -207,9 +208,14 @@ export class TTSController extends EventTarget {
     this.ttsMediaOverlayClient = new MediaOverlayClient(this);
     // Custom OpenAI-compatible providers are user-configured and persisted
     // locally; each gets its own buffered client so voices group per provider.
-    this.ttsOpenAIClients = loadProviderConfigs().map(
-      (config) => new OpenAITTSClient(config, this),
-    );
+    // Prefer the in-memory sync store (hydrated from settings + localStorage
+    // and updated by the replica pull); fall back to localStorage so a fresh
+    // book open before the store hydrates still sees providers.
+    const stored =
+      useTTSProviderStore.getState().getAvailableProviders().length > 0
+        ? useTTSProviderStore.getState().getAvailableProviders()
+        : loadProviderConfigs();
+    this.ttsOpenAIClients = stored.map((config) => new OpenAITTSClient(config, this));
     this.ttsClient = this.ttsWebClient;
     this.appService = appService;
     this.view = view;

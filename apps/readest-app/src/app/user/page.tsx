@@ -11,6 +11,7 @@ import { useQuotaStats } from '@/hooks/useQuotaStats';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useUserActions } from '@/hooks/useUserActions';
 import { useAvailablePlans } from '@/hooks/useAvailablePlans';
+import { HIDE_PREMIUM_ENTRY_POINTS } from '@/utils/access';
 import type { PlanType } from '@/types/quota';
 import { navigateToLibrary } from '@/utils/nav';
 import { eventDispatcher } from '@/utils/event';
@@ -102,7 +103,7 @@ const ProfilePage = () => {
   } = useUserActions();
 
   const { availablePlans, iapAvailable } = useAvailablePlans({
-    hasIAP: appService?.hasIAP || false,
+    hasIAP: HIDE_PREMIUM_ENTRY_POINTS ? false : appService?.hasIAP || false,
     onError: useCallback(
       (message: string) => {
         eventDispatcher.dispatch('toast', {
@@ -318,7 +319,7 @@ const ProfilePage = () => {
               <Spinner loading className='text-gray-900' />
             </div>
           )}
-          {showEmbeddedCheckout ? (
+          {showEmbeddedCheckout && !HIDE_PREMIUM_ENTRY_POINTS ? (
             <div className='bg-base-100 rounded-lg p-4'>
               <Checkout
                 clientSecret={checkoutState.clientSecret}
@@ -359,15 +360,17 @@ const ProfilePage = () => {
                 ) : (
                   <>
                     <div className='flex flex-col gap-y-8 sm:px-6'>
-                      <PlansComparison
-                        availablePlans={availablePlans}
-                        userPlan={userProfilePlan}
-                        onSubscribe={
-                          appService.hasIAP && iapAvailable
-                            ? handleIAPSubscribe
-                            : handleStripeSubscribe
-                        }
-                      />
+                      {!HIDE_PREMIUM_ENTRY_POINTS && (
+                        <PlansComparison
+                          availablePlans={availablePlans}
+                          userPlan={userProfilePlan}
+                          onSubscribe={
+                            appService.hasIAP && iapAvailable
+                              ? handleIAPSubscribe
+                              : handleStripeSubscribe
+                          }
+                        />
+                      )}
                     </div>
                     <div className='flex flex-col gap-y-8 px-6'>
                       <AccountActions

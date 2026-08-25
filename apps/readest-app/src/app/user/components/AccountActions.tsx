@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
+import { HIDE_PREMIUM_ENTRY_POINTS } from '@/utils/access';
 import { UserPlan } from '@/types/quota';
 
 interface DeleteConfirmationModalProps {
@@ -109,23 +110,24 @@ const AccountActions: React.FC<AccountActionsProps> = ({
         }}
       />
       <div className='flex flex-col gap-4 md:grid md:grid-cols-2 lg:grid-cols-3'>
-        {appService?.hasIAP && iapAvailable ? (
-          <button
-            onClick={onRestorePurchase}
-            className='w-full rounded-lg bg-blue-100 px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-200 md:w-auto'
-          >
-            {_('Restore Purchase')}
-          </button>
-        ) : (
-          userPlan !== 'free' && (
+        {!HIDE_PREMIUM_ENTRY_POINTS &&
+          (appService?.hasIAP && iapAvailable ? (
             <button
-              onClick={onManageSubscription}
+              onClick={onRestorePurchase}
               className='w-full rounded-lg bg-blue-100 px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-200 md:w-auto'
             >
-              {_('Manage Subscription')}
+              {_('Restore Purchase')}
             </button>
-          )
-        )}
+          ) : (
+            userPlan !== 'free' && (
+              <button
+                onClick={onManageSubscription}
+                className='w-full rounded-lg bg-blue-100 px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-200 md:w-auto'
+              >
+                {_('Manage Subscription')}
+              </button>
+            )
+          ))}
         {onManageSync && (
           <button
             onClick={onManageSync}

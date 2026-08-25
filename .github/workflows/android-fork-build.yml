@@ -191,3 +191,25 @@ jobs:
             apps/readest-app/src-tauri/gen/android/app/build/outputs/apk/*/release/app-*-release*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: attach APK to release
+        # On a release-triggered run, publish the built APK as a release asset.
+        # Uses the release tag captured from the event; skipped on manual runs.
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKS=$(find apps/readest-app/src-tauri/gen/android/app/build/outputs/apk \
+            -type f \( -name 'app-*-debug.apk' -o -name 'app-*-release*.apk' \) || true)
+          if [ -z "$APKS" ]; then
+            echo "No APKs found to attach to the release."
+            exit 0
+          fi
+          # gh is preinstalled on runners; the release event's GITHUB_TOKEN can
+          # write to the release that triggered this workflow.
+          while IFS= read -r apk; do
+            echo "Attaching $apk to release ${{ github.event.release.tag_name }}"
+            gh release upload "${{ github.event.release.tag_name }}" "$apk" --clobber
+          done <<< "$APKS"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

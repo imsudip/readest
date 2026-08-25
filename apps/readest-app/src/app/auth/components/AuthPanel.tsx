@@ -5,6 +5,7 @@ import { FaApple, FaGithub, FaDiscord } from 'react-icons/fa';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ProviderLogin, type OAuthProvider } from './ProviderLogin';
 import EmailPasswordAuth from './EmailPasswordAuth';
+import { HIDE_SOCIAL_LOGIN } from '@/utils/access';
 
 interface AuthPanelProps {
   supabaseClient: SupabaseClient;
@@ -32,37 +33,41 @@ export default function AuthPanel({
           </p>
         </div>
       </div>
-      <div className='flex w-full flex-col gap-2.5'>
-        <ProviderLogin
-          provider='google'
-          handleSignIn={onProviderSignIn}
-          Icon={FcGoogle}
-          label={_('Sign in with {{provider}}', { provider: 'Google' })}
-        />
-        <ProviderLogin
-          provider='apple'
-          handleSignIn={onProviderSignIn}
-          Icon={FaApple}
-          label={_('Sign in with {{provider}}', { provider: 'Apple' })}
-        />
-        <ProviderLogin
-          provider='github'
-          handleSignIn={onProviderSignIn}
-          Icon={FaGithub}
-          label={_('Sign in with {{provider}}', { provider: 'GitHub' })}
-        />
-        <ProviderLogin
-          provider='discord'
-          handleSignIn={onProviderSignIn}
-          Icon={FaDiscord}
-          label={_('Sign in with {{provider}}', { provider: 'Discord' })}
-        />
-      </div>
-      <div className='flex w-full items-center gap-3' aria-hidden='true'>
-        <hr className='border-base-300 flex-1 border-t' />
-        <span className='text-base-content/50 text-xs'>{_('or continue with email')}</span>
-        <hr className='border-base-300 flex-1 border-t' />
-      </div>
+      {!HIDE_SOCIAL_LOGIN && (
+        <>
+          <div className='flex w-full flex-col gap-2.5'>
+            <ProviderLogin
+              provider='google'
+              handleSignIn={onProviderSignIn}
+              Icon={FcGoogle}
+              label={_('Sign in with {{provider}}', { provider: 'Google' })}
+            />
+            <ProviderLogin
+              provider='apple'
+              handleSignIn={onProviderSignIn}
+              Icon={FaApple}
+              label={_('Sign in with {{provider}}', { provider: 'Apple' })}
+            />
+            <ProviderLogin
+              provider='github'
+              handleSignIn={onProviderSignIn}
+              Icon={FaGithub}
+              label={_('Sign in with {{provider}}', { provider: 'GitHub' })}
+            />
+            <ProviderLogin
+              provider='discord'
+              handleSignIn={onProviderSignIn}
+              Icon={FaDiscord}
+              label={_('Sign in with {{provider}}', { provider: 'Discord' })}
+            />
+          </div>
+          <div className='flex w-full items-center gap-3' aria-hidden='true'>
+            <hr className='border-base-300 flex-1 border-t' />
+            <span className='text-base-content/50 text-xs'>{_('or continue with email')}</span>
+            <hr className='border-base-300 flex-1 border-t' />
+          </div>
+        </>
+      )}
       <EmailPasswordAuth
         supabaseClient={supabaseClient}
         redirectTo={redirectTo}

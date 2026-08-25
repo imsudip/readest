@@ -94,13 +94,17 @@ export default function EmailPasswordAuth({
         const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) setError(error.message);
       } else if (view === 'sign_up') {
+        const fullName = String(formData.get('name') || '').trim();
         const {
           data: { user, session },
           error,
         } = await supabaseClient.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: redirectTo },
+          options: {
+            emailRedirectTo: redirectTo,
+            data: fullName ? { full_name: fullName } : undefined,
+          },
         });
         if (error) setError(error.message);
         else if (user && !session) setMessage(_('Check your email for the confirmation link'));
@@ -138,6 +142,24 @@ export default function EmailPasswordAuth({
       onSubmit={handleSubmit}
       className='w-full space-y-4'
     >
+      {view === 'sign_up' && (
+        <div className='form-control'>
+          <label className='label' htmlFor='name'>
+            <span className='label-text'>{_('Your Name')}</span>
+          </label>
+          <input
+            id='name'
+            name='name'
+            type='text'
+            required
+            placeholder={_('How should we address you?')}
+            autoComplete='name'
+            className='input input-bordered eink-bordered w-full rounded-lg placeholder:text-sm'
+            disabled={loading}
+            onFocus={keepAboveKeyboard}
+          />
+        </div>
+      )}
       <div className='form-control'>
         <label className='label' htmlFor='email'>
           <span className='label-text'>{_('Email address')}</span>

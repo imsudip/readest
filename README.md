@@ -99,6 +99,10 @@ The self-host docker stack ships no billing backend (no `plans` table, no Stripe
 - `EMAIL_IN_PLANS` includes `free` — Send-to-Readest email for all
 - Quotas are unlimited via `STORAGE_FIXED_QUOTA` / `TRANSLATION_FIXED_QUOTA` env (see `docker/.env.example`)
 
+### Self-Hosted: Email-Only Auth
+
+A self-hosted Supabase backend has no OAuth providers configured, so the social sign-in buttons would only error. `HIDE_SOCIAL_LOGIN = true` removes them from the auth page (the provider code stays in place — flip the flag to restore). Signing up with email/password now also captures a display **name**, which appears on the account/profile screen.
+
 ### Prebuilt Image
 
 A prebuilt client image with these changes is published to GHCR (multi-arch amd64/arm64):

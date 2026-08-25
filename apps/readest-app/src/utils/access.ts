@@ -107,6 +107,16 @@ export const isTTSCacheAllowed = (plan: UserPlan): boolean =>
  */
 export const HIDE_PREMIUM_ENTRY_POINTS = true;
 
+/**
+ * Fork master switch: hide the OAuth / social sign-in buttons on the auth
+ * page. A self-hosted Supabase backend typically has no OAuth providers
+ * configured, so the buttons only error out. The provider code stays in
+ * place (ProviderLogin + the auth page's OAuth handlers) — this flag only
+ * stops the buttons from rendering, so an upstream merge stays clean and
+ * a deployment that does configure OAuth can flip it back on.
+ */
+export const HIDE_SOCIAL_LOGIN = true;
+
 export const STORAGE_QUOTA_GRACE_BYTES = 10 * 1024 * 1024; // 10 MB grace
 
 export const getStoragePlanData = (token: string) => {

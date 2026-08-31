@@ -134,6 +134,7 @@ jobs:
           SELFHOST_STORAGE_FIXED_QUOTA: ${{ vars.SELFHOST_STORAGE_FIXED_QUOTA }}
           SELFHOST_TRANSLATION_FIXED_QUOTA: ${{ vars.SELFHOST_TRANSLATION_FIXED_QUOTA }}
           SELFHOST_FONT_BASE_URL: ${{ vars.SELFHOST_FONT_BASE_URL }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name || '' }}
         run: |
           touch apps/readest-app/.env.local
           write_env() {
@@ -150,6 +151,25 @@ jobs:
           write_env "$SELFHOST_STORAGE_FIXED_QUOTA" NEXT_PUBLIC_STORAGE_FIXED_QUOTA
           write_env "$SELFHOST_TRANSLATION_FIXED_QUOTA" NEXT_PUBLIC_TRANSLATION_FIXED_QUOTA
           write_env "$SELFHOST_FONT_BASE_URL" NEXT_PUBLIC_FONT_BASE_URL
+
+          # The fork's reported app version. package.json stays at the upstream
+          # version (e.g. 0.12.6) so upstream syncs never conflict on it; here we
+          # bump the patch +1 and tag it -fork.<N> so the fork's version ALWAYS
+          # sorts higher than the upstream base it was built from (0.12.6 →
+          # 0.12.7-fork.1). This is what the in-app updater compares against
+          # latest.json. Falls back to package.json when no release tag.
+          if [ -n "$RELEASE_TAG" ]; then
+            tag="${RELEASE_TAG#v}"                 # v0.12.6-fork.1 -> 0.12.6-fork.1
+            base="${tag%-fork.*}"                  # 0.12.6
+            rev="${tag##*-fork.}"                  # 1
+            major="${base%%.*}"; rest="${base#*.}"
+            minor="${rest%%.*}"; patch="${rest##*.}"
+            next_patch=$((10#$patch + 1))
+            fork_version="${major}.${minor}.${next_patch}-fork.${rev}"
+            write_env "$fork_version" NEXT_PUBLIC_APP_VERSION
+            echo "FORK_APP_VERSION=$fork_version"
+          fi
+
           echo "--- apps/readest-app/.env.local (injected, key names only) ---"
           grep -oE '^[A-Z0-9_]+' apps/readest-app/.env.local || true
 
@@ -259,5 +279,78 @@ jobs:
             echo "Attaching $apk to release $RELEASE_TAG"
             gh release upload "$RELEASE_TAG" "$apk" --clobber
           done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: generate and attach latest.json
+        # Publish the update manifest the in-app updater checks. The app fetches
+        # READEST_UPDATER_FILE (= https://github.com/imsudip/readest/releases/latest/download/latest.json)
+        # on Android, compares data.version against its installed version, and
+        # downloads platforms['android-arm64'|'android-universal'].url to update.
+        # Keeping this on the GitHub Release makes the fork's Releases tab the
+        # single source of truth for updates (no separate server needed).
+        if: github.event_name == 'release' || inputs.release_tag != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ inputs.release_tag || github.event.release.tag_name || '' }}"
+          version="${RELEASE_TAG#v}"
+          # The version reported in latest.json must match what the APK reports
+          # as its installed version (NEXT_PUBLIC_APP_VERSION, set above: patch+1
+          # -fork.N). Recompute it identically so the update dialog shows the
+          # right number and the app's own check (latest > installed) passes on
+          # the NEXT release.
+          base="${version%-fork.*}"
+          rev="${version##*-fork.}"
+          major="${base%%.*}"; rest="${base#*.}"
+          minor="${rest%%.*}"; patch="${rest##*.}"
+          next_patch=$((10#$patch + 1))
+          manifest_version="${major}.${minor}.${next_patch}-fork.${rev}"
+
+          staged_dir="apps/readest-app/src-tauri/gen/android/app/build/outputs/staged"
+          repo="${GITHUB_REPOSITORY}" # imsudip/readest
+          base_url="https://github.com/${repo}/releases/download/${RELEASE_TAG}"
+
+          # Map the built split APKs to the updater's platform keys.
+          #   android-arm64     -> the arm64 (ARM64/AArch64) split APK. The
+          #                       fork's primary target (and most devices).
+          #   android-universal -> the arm (ARM32) split APK. Covers the bulk
+          #                       of remaining non-ARM64 devices, which are
+          #                       32-bit ARM. (The app routes every non-aarch64
+          #                       device to this key; x86 emulators are a rare
+          #                       edge case and can grab a split APK manually.)
+          android_arm64=""
+          android_universal=""
+          shopt -s nullglob
+          for apk in "$staged_dir"/Readest_*.apk; do
+            fname="$(basename "$apk")"
+            case "$fname" in
+              *_arm64.apk) android_arm64="$base_url/$fname" ;;
+              *_arm.apk) android_universal="$base_url/$fname" ;;
+            esac
+          done
+          if [ -z "$android_arm64" ] && [ -z "$android_universal" ]; then
+            echo "No APK assets found to reference in latest.json."
+            exit 0
+          fi
+          # Fallbacks so both keys always have a working (installable) target:
+          # if a split APK is missing, point the key at whichever one exists.
+          [ -n "$android_arm64" ] || android_arm64="$android_universal"
+          [ -n "$android_universal" ] || android_universal="$android_arm64"
+
+          # jq is preinstalled on GitHub runners; building the JSON this way
+          # avoids heredoc-indentation pitfalls in the workflow YAML.
+          jq -n \
+            --arg version "$manifest_version" \
+            --arg notes "Fork build $RELEASE_TAG" \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg arm64 "$android_arm64" \
+            --arg univ "$android_universal" \
+            '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {("android-arm64"): {url: $arm64}, ("android-universal"): {url: $univ}}}' \
+            > "$staged_dir/latest.json"
+          echo "Generated $staged_dir/latest.json:"
+          cat "$staged_dir/latest.json"
+          echo "Attaching latest.json to release $RELEASE_TAG"
+          gh release upload "$RELEASE_TAG" "$staged_dir/latest.json" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

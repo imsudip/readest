@@ -1,9 +1,15 @@
 import semver from 'semver';
 import packageJson from '../../package.json';
 
-export const getAppVersion = () => {
-  return packageJson.version;
-};
+// The fork overrides the reported app version at build time via
+// NEXT_PUBLIC_APP_VERSION (set by .github/workflows/android-fork-build.yml,
+// derived from the release tag). This lets the fork run a version that sorts
+// higher than upstream's current release WITHOUT editing package.json, so
+// future upstream syncs don't create a version conflict on every merge. When
+// the env var is unset (e.g. plain `pnpm dev`), it falls back to package.json.
+const FORK_APP_VERSION = process.env['NEXT_PUBLIC_APP_VERSION'] ?? packageJson.version;
+
+export const getAppVersion = () => FORK_APP_VERSION;
 
 export interface ParsedUpdateVersion {
   base: string; // "X.Y.Z"

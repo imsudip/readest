@@ -929,13 +929,22 @@ export const SHARE_TOKEN_LENGTH = 22;
 export const SHARE_PRESIGN_TTL_SECONDS = 300;
 export const SHARE_CFI_MAX_LENGTH = 512;
 
-const LATEST_DOWNLOAD_BASE_URL = 'https://download.readest.com/releases';
+// Upstream serves the update manifests from download.readest.com. This fork
+// publishes its own APKs to its GitHub Releases, so the updater points at the
+// fork's `latest.json` release asset instead. `latest.json` is generated and
+// attached by .github/workflows/android-fork-build.yml on every release.
+// Can be overridden at build time via NEXT_PUBLIC_UPDATER_BASE_URL.
+const LATEST_DOWNLOAD_BASE_URL =
+  process.env['NEXT_PUBLIC_UPDATER_BASE_URL'] ||
+  'https://github.com/imsudip/readest/releases/latest/download';
 
 export const READEST_UPDATER_FILE = `${LATEST_DOWNLOAD_BASE_URL}/latest.json`;
 
-export const READEST_CHANGELOG_FILE = `${LATEST_DOWNLOAD_BASE_URL}/release-notes.json`;
+// Release notes are still served from upstream (the fork has no
+// release-notes.json of its own); this only drives the "What's New" dialog.
+export const READEST_CHANGELOG_FILE = 'https://download.readest.com/releases/release-notes.json';
 
-export const READEST_NIGHTLY_UPDATER_FILE = 'https://download.readest.com/nightly/latest.json';
+export const READEST_NIGHTLY_UPDATER_FILE = `${LATEST_DOWNLOAD_BASE_URL}/nightly/latest.json`;
 
 // Public (verification) key, identical to src-tauri/tauri.conf.json `updater.pubkey`.
 // Used to verify nightly artifacts in the custom install flows (portable /

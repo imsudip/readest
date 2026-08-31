@@ -143,9 +143,9 @@ export default function EmailPasswordAuth({
       className='w-full space-y-4'
     >
       {view === 'sign_up' && (
-        <div className='form-control'>
-          <label className='label' htmlFor='name'>
-            <span className='label-text'>{_('Your Name')}</span>
+        <div className='flex flex-col'>
+          <label className='flex select-none items-center justify-between px-1 py-2' htmlFor='name'>
+            <span className='text-sm'>{_('Your Name')}</span>
           </label>
           <input
             id='name'
@@ -154,15 +154,15 @@ export default function EmailPasswordAuth({
             required
             placeholder={_('How should we address you?')}
             autoComplete='name'
-            className='input input-bordered eink-bordered w-full rounded-lg placeholder:text-sm'
+            className='input eink-bordered w-full rounded-lg placeholder:text-sm'
             disabled={loading}
             onFocus={keepAboveKeyboard}
           />
         </div>
       )}
-      <div className='form-control'>
-        <label className='label' htmlFor='email'>
-          <span className='label-text'>{_('Email address')}</span>
+      <div className='flex flex-col'>
+        <label className='flex select-none items-center justify-between px-1 py-2' htmlFor='email'>
+          <span className='text-sm'>{_('Email address')}</span>
         </label>
         <input
           id='email'
@@ -172,15 +172,18 @@ export default function EmailPasswordAuth({
           defaultValue={defaultEmail}
           placeholder={_('Your email address')}
           autoComplete={hasPassword ? 'username' : 'email'}
-          className='input input-bordered eink-bordered w-full rounded-lg placeholder:text-sm'
+          className='input eink-bordered w-full rounded-lg placeholder:text-sm'
           disabled={loading}
           onFocus={keepAboveKeyboard}
         />
       </div>
       {hasPassword && (
-        <div className='form-control'>
-          <label className='label' htmlFor='password'>
-            <span className='label-text'>
+        <div className='flex flex-col'>
+          <label
+            className='flex select-none items-center justify-between px-1 py-2'
+            htmlFor='password'
+          >
+            <span className='text-sm'>
               {view === 'sign_in' ? _('Your Password') : _('Create a Password')}
             </span>
           </label>
@@ -191,7 +194,7 @@ export default function EmailPasswordAuth({
             required
             placeholder={_('Your password')}
             autoComplete={view === 'sign_in' ? 'current-password' : 'new-password'}
-            className='input input-bordered eink-bordered w-full rounded-lg placeholder:text-sm'
+            className='input eink-bordered w-full rounded-lg placeholder:text-sm'
             disabled={loading}
             onFocus={keepAboveKeyboard}
           />

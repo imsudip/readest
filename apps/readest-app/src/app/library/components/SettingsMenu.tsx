@@ -15,14 +15,7 @@ import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useQuotaStats } from '@/hooks/useQuotaStats';
 import { HIDE_PREMIUM_ENTRY_POINTS } from '@/utils/access';
-import { useFileSyncStore } from '@/store/fileSyncStore';
-import {
-  isReadestCloudEnabled,
-  cloudProvidersDisplayName,
-  settingsKeyForBackend,
-  type CloudSyncProviderKind,
-} from '@/services/sync/cloudSyncProvider';
-import { getReadyFileSyncBackends } from '@/services/sync/file/runLibrarySync';
+import { isReadestCloudEnabled } from '@/services/sync/cloudSyncProvider';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';

@@ -1821,8 +1821,9 @@ export class TTSController extends EventTarget {
     const useNativeTTS = !!this.ttsNativeVoices.find(
       (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
     );
-    // A voice belongs to a custom OpenAI provider when exactly one configured
-    // client exposes it (its group header carries the provider name).
+    // A voice belongs to a custom configured provider (OpenAI-compatible or
+    // another engine such as Sarvam) when exactly one configured client
+    // exposes it (its group header carries the provider name).
     let openAIClient: OpenAITTSClient | null = null;
     for (const client of this.ttsOpenAIClients) {
       const voices = await client.getAllVoices();
